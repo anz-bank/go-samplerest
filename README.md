@@ -4,4 +4,10 @@ This project is intended to illustrate good engineering practices for golang app
 
 ### Build, Run, Test
 
-TODO once theres actually something to build, run and test.
+To compile the server to binary and run it, go to the projects root directory and use the following
+```
+ > go build -o build/petserver ./cmd/petserver
+ > ./build/petserver
+```
+
+
