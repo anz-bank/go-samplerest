@@ -17,6 +17,31 @@ const (
 	idKey contextKey = iota
 )
 
+var errStatusMap = map[int]int{
+	ErrBadRequest:      http.StatusBadRequest,
+	ErrUnknown:         http.StatusInternalServerError,
+	ErrIDAlreadyExists: http.StatusInternalServerError,
+	ErrIDNotFound:      http.StatusNotFound,
+}
+
+// renderHTTPErrorResponse handles http responses in the case of an error
+func renderHTTPErrorResponse(w http.ResponseWriter, err error) {
+	message := err.Error()
+	responseStatus := http.StatusInternalServerError
+	// pet service Errors store more specific response information
+	if specificError, ok := err.(*Error); ok {
+		message = specificError.Message
+		// Attempt to get a more specific status code
+		if status, ok := errStatusMap[specificError.Code]; ok {
+			responseStatus = status
+		}
+	}
+	http.Error(w, message, responseStatus)
+	return
+}
+
+// urlParamContextSaverMiddleware is a middleware that extracts a url parameter on an path
+// and saves its value to the request context for downstream paths and endpoints
 func urlParamContextSaverMiddleware(urlParam string, id contextKey) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +69,8 @@ func makeHandler(serveRequest func(*http.Request) (int, interface{}, error)) htt
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response, err := serveRequest(r)
 		if err != nil {
-			// TODO: Logging
-			renderHTTPErrorResponse(w, r, err)
+			// TODO(cantosd): Logging
+			renderHTTPErrorResponse(w, err)
 			return
 		}
 		render.Status(r, statusCode)
@@ -65,20 +90,28 @@ func NewPetService(storer Storer) *Service {
 	}
 }
 
-// nilStatus is used when it is expected to be
-// overriden in the response
-// eg: function is returning an error
-const nilStatus = http.StatusInternalServerError
+// errorResponseData returns the response data in the case an error occurs
+// The handler functions are expected to return either
+// 1. a response code and body
+// 2. an error
+// In the case an error occurs, the response status and body will be overriden
+// by the error handle
+func errorResponseData(err error) (int, interface{}, error) {
+	return http.StatusInternalServerError, nil, err
+}
+
+// These functions take a request and return the appropriate response and status code
+// In the case these return an error, the error will be passed
 
 // GetPet handles a GET request to retrieve a pet
 func (ps *Service) GetPet(r *http.Request) (int, interface{}, error) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 	pet, err := ps.store.GetPet(petID)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 	return http.StatusOK, pet, nil
 }
@@ -87,43 +120,41 @@ func (ps *Service) GetPet(r *http.Request) (int, interface{}, error) {
 func (ps *Service) PostPet(r *http.Request) (int, interface{}, error) {
 	newPet, err := readPetBody(r)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 
 	if err = ps.store.PostPet(newPet); err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 
 	return http.StatusCreated, nil, nil
 }
 
-// PutPet handles a PUT request to modify a pet
+// PutPet handles a PUT request to create or modify a pet
 func (ps *Service) PutPet(r *http.Request) (int, interface{}, error) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 	pet, err := readPetBody(r)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
-
 	if err = ps.store.PutPet(petID, pet); err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
-	return http.StatusOK, nil, nil
+	return http.StatusCreated, nil, nil
 }
 
 // DeletePet handles a DELETE request to delete a pet
 func (ps *Service) DeletePet(r *http.Request) (int, interface{}, error) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
-
 	petDeleted, err := ps.store.DeletePet(petID)
 	if err != nil {
-		return nilStatus, nil, err
+		return errorResponseData(err)
 	}
 	if petDeleted {
 		return http.StatusOK, nil, nil
@@ -132,35 +163,33 @@ func (ps *Service) DeletePet(r *http.Request) (int, interface{}, error) {
 }
 
 func readPetID(r *http.Request) (int32, error) {
-	petID, ok := r.Context().Value(idKey).(string)
-	if !ok {
-		return 0, APIErrorf(ErrUnknown, "pet ID was lost somewhere")
+	petID := r.Context().Value(idKey)
+	if petID == nil {
+		// Reaching thi indicates a bug. At this point, request context should contain an id
+		// TODO(cantosd): logging
+		return int32(ErrUnknown), Errorf(ErrUnknown, "pet ID was lost somewhere")
 	}
-	if petID == "" {
-		return 0, APIErrorf(ErrUnknown, "pet ID was empty")
-	}
-	intID, err := strconv.ParseInt(petID, 10, 32)
+	intID, err := strconv.ParseInt(petID.(string), 10, 32)
 	if err != nil {
-		return 0, APIErrorEf(0, err, "Inalid pet ID %d. ID should be a number", intID)
+		return int32(ErrBadRequest), Errorf(ErrUnknown, "Invalid pet ID %v. ID should be a number", petID)
 	}
 	return int32(intID), nil
 }
 
 func readPetBody(r *http.Request) (*Pet, error) {
 	if r.Body == nil {
-		return nil, APIErrorf(ErrBadRequest, "No request body")
+		return nil, Errorf(ErrBadRequest, "No request body")
 	}
 	petData, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, APIErrorEf(ErrBadRequest, err, "Bad request body")
+		return nil, ErrorEf(ErrBadRequest, err, "Bad request body")
 	}
-
 	var pet Pet
 	if err = json.Unmarshal(petData, &pet); err != nil {
-		return nil, APIErrorEf(ErrBadRequest, err, "Invalid pet data")
+		return nil, ErrorEf(ErrBadRequest, err, "Invalid pet data")
 	}
 
-	// TODO: validation
+	// TODO(cantosd): validation
 
 	return &pet, nil
 }
