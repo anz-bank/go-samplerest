@@ -70,7 +70,6 @@ func makeHandler(serveRequest func(*http.Request) (int, interface{}, error)) htt
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		statusCode, response, err := serveRequest(r)
 		if err != nil {
-			// TODO(cantosd): Logging
 			renderHTTPErrorResponse(w, err)
 			return
 		}
@@ -163,18 +162,17 @@ func (ps *Service) DeletePet(r *http.Request) (int, interface{}, error) {
 	return http.StatusNoContent, nil, nil
 }
 
-func readPetID(r *http.Request) (int32, error) {
+func readPetID(r *http.Request) (uint32, error) {
 	petID := r.Context().Value(idKey)
 	if petID == nil {
-		// Reaching thi indicates a bug. At this point, request context should contain an id
-		// TODO(cantosd): logging
-		return int32(ErrUnknown), Errorf(ErrUnknown, "pet ID was lost somewhere")
+		// Reaching this indicates a bug. At this point, request context should contain an id
+		return uint32(ErrUnknown), Errorf(ErrUnknown, "pet ID was lost somewhere")
 	}
 	intID, err := strconv.ParseInt(petID.(string), 10, 32)
 	if err != nil {
-		return int32(ErrBadRequest), Errorf(ErrBadRequest, "Invalid pet ID %v. ID should be a number", petID)
+		return uint32(ErrBadRequest), Errorf(ErrBadRequest, "Invalid pet ID %v. ID should be a number", petID)
 	}
-	return int32(intID), nil
+	return uint32(intID), nil
 }
 
 func readPetBody(r *http.Request) (*Pet, error) {
@@ -189,8 +187,5 @@ func readPetBody(r *http.Request) (*Pet, error) {
 	if err = json.Unmarshal(petData, &pet); err != nil {
 		return nil, ErrorEf(ErrBadRequest, err, "Invalid pet data")
 	}
-
-	// TODO(cantosd): validation
-
 	return &pet, nil
 }
