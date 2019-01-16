@@ -26,7 +26,7 @@ func (m *MemStore) GetPet(petID int32) (*Pet, error) {
 	}
 	pet, ok := petData.(Pet)
 	if !ok {
-		return nil, Errorf(0, "Could not read pet data from store")
+		return nil, Errorf(ErrUnknown, "Could not read pet data from store")
 	}
 	return &pet, nil
 }

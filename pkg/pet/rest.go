@@ -17,11 +17,12 @@ const (
 	idKey contextKey = iota
 )
 
+// maps from internal errors to response status codes
+// renderHTTPErrorResponse defaults to internal server error
+// if a specific error code is not defined.
 var errStatusMap = map[int]int{
-	ErrBadRequest:      http.StatusBadRequest,
-	ErrUnknown:         http.StatusInternalServerError,
-	ErrIDAlreadyExists: http.StatusInternalServerError,
-	ErrIDNotFound:      http.StatusNotFound,
+	ErrBadRequest: http.StatusBadRequest,
+	ErrIDNotFound: http.StatusNotFound,
 }
 
 // renderHTTPErrorResponse handles http responses in the case of an error
@@ -54,7 +55,7 @@ func urlParamContextSaverMiddleware(urlParam string, id contextKey) func(http.Ha
 
 // SetupRoutes sets up pet service routes for the given router
 func SetupRoutes(r chi.Router, s *Service) {
-	r.Route("/api", func(r chi.Router) {
+	r.Route("/api/pet", func(r chi.Router) {
 		r.Post("/", makeHandler(s.PostPet))
 		r.Route("/{id}", func(r chi.Router) {
 			r.Use(urlParamContextSaverMiddleware("id", idKey))
@@ -95,9 +96,9 @@ func NewPetService(storer Storer) *Service {
 // 1. a response code and body
 // 2. an error
 // In the case an error occurs, the response status and body will be overriden
-// by the error handle
+// by the error handler
 func errorResponseData(err error) (int, interface{}, error) {
-	return http.StatusInternalServerError, nil, err
+	return 0, nil, err
 }
 
 // These functions take a request and return the appropriate response and status code
@@ -109,7 +110,7 @@ func (ps *Service) GetPet(r *http.Request) (int, interface{}, error) {
 	if err != nil {
 		return errorResponseData(err)
 	}
-	pet, err := ps.store.GetPet(petID)
+	pet, err := ps.store.ReadPet(petID)
 	if err != nil {
 		return errorResponseData(err)
 	}
@@ -123,7 +124,7 @@ func (ps *Service) PostPet(r *http.Request) (int, interface{}, error) {
 		return errorResponseData(err)
 	}
 
-	if err = ps.store.PostPet(newPet); err != nil {
+	if err = ps.store.CreatePet(newPet); err != nil {
 		return errorResponseData(err)
 	}
 
@@ -140,7 +141,7 @@ func (ps *Service) PutPet(r *http.Request) (int, interface{}, error) {
 	if err != nil {
 		return errorResponseData(err)
 	}
-	if err = ps.store.PutPet(petID, pet); err != nil {
+	if err = ps.store.UpdatePet(petID, pet); err != nil {
 		return errorResponseData(err)
 	}
 	return http.StatusCreated, nil, nil
@@ -171,7 +172,7 @@ func readPetID(r *http.Request) (int32, error) {
 	}
 	intID, err := strconv.ParseInt(petID.(string), 10, 32)
 	if err != nil {
-		return int32(ErrBadRequest), Errorf(ErrUnknown, "Invalid pet ID %v. ID should be a number", petID)
+		return int32(ErrBadRequest), Errorf(ErrBadRequest, "Invalid pet ID %v. ID should be a number", petID)
 	}
 	return int32(intID), nil
 }
