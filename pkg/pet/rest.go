@@ -18,15 +18,15 @@ const (
 )
 
 // maps from internal errors to response status codes
-// renderHTTPErrorResponse defaults to internal server error
+// renderErrorResponse defaults to internal server error
 // if a specific error code is not defined.
 var errStatusMap = map[int]int{
 	ErrBadRequest: http.StatusBadRequest,
 	ErrIDNotFound: http.StatusNotFound,
 }
 
-// renderHTTPErrorResponse handles http responses in the case of an error
-func renderHTTPErrorResponse(w http.ResponseWriter, err error) {
+// renderErrorResponse handles http responses in the case of an error
+func renderErrorResponse(w http.ResponseWriter, err error) {
 	message := err.Error()
 	responseStatus := http.StatusInternalServerError
 	// pet service Errors store more specific response information
@@ -56,25 +56,13 @@ func urlParamContextSaverMiddleware(urlParam string, id contextKey) func(http.Ha
 // SetupRoutes sets up pet service routes for the given router
 func SetupRoutes(r chi.Router, s *Service) {
 	r.Route("/api/pet", func(r chi.Router) {
-		r.Post("/", makeHandler(s.PostPet))
+		r.Post("/", s.PostPet)
 		r.Route("/{id}", func(r chi.Router) {
 			r.Use(urlParamContextSaverMiddleware("id", idKey))
-			r.Get("/", makeHandler(s.GetPet))
-			r.Put("/", makeHandler(s.PutPet))
-			r.Delete("/", makeHandler(s.DeletePet))
+			r.Get("/", s.GetPet)
+			r.Put("/", s.PutPet)
+			r.Delete("/", s.DeletePet)
 		})
-	})
-}
-
-func makeHandler(serveRequest func(*http.Request) (int, interface{}, error)) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		statusCode, response, err := serveRequest(r)
-		if err != nil {
-			renderHTTPErrorResponse(w, err)
-			return
-		}
-		render.Status(r, statusCode)
-		render.JSON(w, r, response)
 	})
 }
 
@@ -104,62 +92,74 @@ func errorResponseData(err error) (int, interface{}, error) {
 // In the case these return an error, the error will be passed
 
 // GetPet handles a GET request to retrieve a pet
-func (ps *Service) GetPet(r *http.Request) (int, interface{}, error) {
+func (ps *Service) GetPet(w http.ResponseWriter, r *http.Request) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 	pet, err := ps.store.ReadPet(petID)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
-	return http.StatusOK, pet, nil
+	render.Status(r, http.StatusOK)
+	render.JSON(w, r, pet)
 }
 
 // PostPet handles a POST request to add a new pet
-func (ps *Service) PostPet(r *http.Request) (int, interface{}, error) {
+func (ps *Service) PostPet(w http.ResponseWriter, r *http.Request) {
 	newPet, err := readPetBody(r)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 
 	if err = ps.store.CreatePet(newPet); err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
-
-	return http.StatusCreated, nil, nil
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, nil)
 }
 
 // PutPet handles a PUT request to create or modify a pet
-func (ps *Service) PutPet(r *http.Request) (int, interface{}, error) {
+func (ps *Service) PutPet(w http.ResponseWriter, r *http.Request) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 	pet, err := readPetBody(r)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 	if err = ps.store.UpdatePet(petID, pet); err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
 	}
-	return http.StatusCreated, nil, nil
+	render.Status(r, http.StatusCreated)
+	render.JSON(w, r, nil)
 }
 
 // DeletePet handles a DELETE request to delete a pet
-func (ps *Service) DeletePet(r *http.Request) (int, interface{}, error) {
+func (ps *Service) DeletePet(w http.ResponseWriter, r *http.Request) {
 	petID, err := readPetID(r)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 	petDeleted, err := ps.store.DeletePet(petID)
 	if err != nil {
-		return errorResponseData(err)
+		renderErrorResponse(w, err)
+		return
 	}
 	if petDeleted {
-		return http.StatusOK, nil, nil
+		render.Status(r, http.StatusOK)
+	} else {
+		render.Status(r, http.StatusNoContent)
 	}
-	return http.StatusNoContent, nil, nil
+	render.JSON(w, r, nil)
 }
 
 func readPetID(r *http.Request) (uint32, error) {
