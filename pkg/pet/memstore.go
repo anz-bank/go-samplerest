@@ -22,17 +22,17 @@ func (m *MemStore) CreatePet(pet *Pet) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.store.Load(pet.ID); ok {
-		return Errorf(ErrIDAlreadyExists, "Pet with id %d already exists", pet.ID)
+		return Errorf(ErrDuplicate, "Pet with id %d already exists", pet.ID)
 	}
 	m.store.Store(pet.ID, *pet)
 	return nil
 }
 
 // ReadPet gets a pet from the store given an ID
-func (m *MemStore) ReadPet(petID int32) (*Pet, error) {
+func (m *MemStore) ReadPet(petID uint32) (*Pet, error) {
 	petData, ok := m.store.Load(petID)
 	if !ok {
-		return nil, Errorf(ErrIDNotFound, "No pet exists with id %d", petID)
+		return nil, Errorf(ErrNotFound, "No pet exists with id %d", petID)
 	}
 	pet, ok := petData.(Pet)
 	if !ok {
@@ -42,13 +42,13 @@ func (m *MemStore) ReadPet(petID int32) (*Pet, error) {
 }
 
 // UpdatePet puts new pet data to the store, either creating a new one or overriding an old
-func (m *MemStore) UpdatePet(petID int32, pet *Pet) error {
+func (m *MemStore) UpdatePet(petID uint32, pet *Pet) error {
 	m.store.Store(petID, *pet)
 	return nil
 }
 
 // DeletePet deletes a pet from the store
-func (m *MemStore) DeletePet(petID int32) (bool, error) {
+func (m *MemStore) DeletePet(petID uint32) (bool, error) {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.store.Load(petID); !ok {

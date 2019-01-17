@@ -8,14 +8,12 @@ import (
 const (
 	// ErrUnknown is used when an unknown error occurred
 	ErrUnknown int = iota
-	// ErrBadRequest is used when the incoming request is invalid
-	ErrBadRequest
-	// ErrInvalidID is used when an invalid ID is encountered
-	ErrInvalidID
-	// ErrIDAlreadyExists is used when attempting to erroneously overwrite an existing entry
-	ErrIDAlreadyExists
-	// ErrIDNotFound is used when attempting to read a non-existing entry
-	ErrIDNotFound
+	// ErrInvalidInput is used when the incoming request is invalid
+	ErrInvalidInput
+	// ErrDuplicate is used when attempting to erroneously overwrite an existing entry
+	ErrDuplicate
+	// ErrNotFound is used when attempting to read a non-existing entry
+	ErrNotFound
 )
 
 // Error defines an error that separates internal and external error messages

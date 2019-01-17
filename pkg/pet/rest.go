@@ -21,8 +21,8 @@ const (
 // renderErrorResponse defaults to internal server error
 // if a specific error code is not defined.
 var errStatusMap = map[int]int{
-	ErrBadRequest: http.StatusBadRequest,
-	ErrIDNotFound: http.StatusNotFound,
+	ErrInvalidInput: http.StatusBadRequest,
+	ErrNotFound:     http.StatusNotFound,
 }
 
 // renderErrorResponse handles http responses in the case of an error
@@ -76,16 +76,6 @@ func NewPetService(storer Storer) *Service {
 	return &Service{
 		store: storer,
 	}
-}
-
-// errorResponseData returns the response data in the case an error occurs
-// The handler functions are expected to return either
-// 1. a response code and body
-// 2. an error
-// In the case an error occurs, the response status and body will be overriden
-// by the error handler
-func errorResponseData(err error) (int, interface{}, error) {
-	return 0, nil, err
 }
 
 // These functions take a request and return the appropriate response and status code
@@ -170,22 +160,22 @@ func readPetID(r *http.Request) (uint32, error) {
 	}
 	intID, err := strconv.ParseInt(petID.(string), 10, 32)
 	if err != nil {
-		return uint32(ErrBadRequest), Errorf(ErrBadRequest, "Invalid pet ID %v. ID should be a number", petID)
+		return uint32(ErrInvalidInput), Errorf(ErrInvalidInput, "Invalid pet ID %v. ID should be a number", petID)
 	}
 	return uint32(intID), nil
 }
 
 func readPetBody(r *http.Request) (*Pet, error) {
 	if r.Body == nil {
-		return nil, Errorf(ErrBadRequest, "No request body")
+		return nil, Errorf(ErrInvalidInput, "No request body")
 	}
 	petData, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, ErrorEf(ErrBadRequest, err, "Bad request body")
+		return nil, ErrorEf(ErrInvalidInput, err, "Bad request body")
 	}
 	var pet Pet
 	if err = json.Unmarshal(petData, &pet); err != nil {
-		return nil, ErrorEf(ErrBadRequest, err, "Invalid pet data")
+		return nil, ErrorEf(ErrInvalidInput, err, "Invalid pet data")
 	}
 	return &pet, nil
 }
