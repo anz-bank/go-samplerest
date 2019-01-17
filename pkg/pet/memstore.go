@@ -7,30 +7,28 @@ import (
 // MemStore is an in-memory implementation of PetStorer
 type MemStore struct {
 	sync.Mutex
-	store sync.Map
+	sync.Map
 }
 
 // NewMemStore creates a new in-memory store with map intialised
 func NewMemStore() *MemStore {
-	return &MemStore{
-		store: sync.Map{},
-	}
+	return &MemStore{}
 }
 
 // CreatePet adds a new pet to the store
 func (m *MemStore) CreatePet(pet *Pet) error {
 	m.Lock()
 	defer m.Unlock()
-	if _, ok := m.store.Load(pet.ID); ok {
+	if _, ok := m.Load(pet.ID); ok {
 		return Errorf(ErrDuplicate, "Pet with id %d already exists", pet.ID)
 	}
-	m.store.Store(uint32(pet.ID), *pet)
+	m.Store(uint32(pet.ID), *pet)
 	return nil
 }
 
 // ReadPet gets a pet from the store given an ID
 func (m *MemStore) ReadPet(petID uint32) (*Pet, error) {
-	petData, ok := m.store.Load(petID)
+	petData, ok := m.Load(petID)
 	if !ok {
 		return nil, Errorf(ErrNotFound, "No pet exists with id %d", petID)
 	}
@@ -43,7 +41,7 @@ func (m *MemStore) ReadPet(petID uint32) (*Pet, error) {
 
 // UpdatePet puts new pet data to the store, either creating a new one or overriding an old
 func (m *MemStore) UpdatePet(petID uint32, pet *Pet) error {
-	m.store.Store(petID, *pet)
+	m.Store(petID, *pet)
 	return nil
 }
 
@@ -51,9 +49,9 @@ func (m *MemStore) UpdatePet(petID uint32, pet *Pet) error {
 func (m *MemStore) DeletePet(petID uint32) (bool, error) {
 	m.Lock()
 	defer m.Unlock()
-	if _, ok := m.store.Load(petID); !ok {
+	if _, ok := m.Load(petID); !ok {
 		return false, nil
 	}
-	m.store.Delete(petID)
+	m.Delete(petID)
 	return true, nil
 }
