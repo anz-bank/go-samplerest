@@ -24,7 +24,7 @@ func (m *MemStore) CreatePet(pet *Pet) error {
 	if _, ok := m.store.Load(pet.ID); ok {
 		return Errorf(ErrDuplicate, "Pet with id %d already exists", pet.ID)
 	}
-	m.store.Store(pet.ID, *pet)
+	m.store.Store(uint32(pet.ID), *pet)
 	return nil
 }
 
