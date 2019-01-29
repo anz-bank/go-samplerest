@@ -2,7 +2,7 @@ package pet
 
 // Pet defines the data structure corresponding to a pet
 type Pet struct {
-	ID      int32                  `json:"id"`
+	ID      uint32                 `json:"id"`
 	Name    string                 `json:"name"`
 	Species string                 `json:"species"`
 	Owner   string                 `json:"owner"`
