@@ -38,7 +38,6 @@ func renderErrorResponse(w http.ResponseWriter, err error) {
 		}
 	}
 	http.Error(w, message, responseStatus)
-	return
 }
 
 // urlParamContextSaverMiddleware is a middleware that extracts a url parameter on an path

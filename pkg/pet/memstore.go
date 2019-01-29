@@ -22,13 +22,13 @@ func (m *MemStore) CreatePet(pet *Pet) error {
 	if _, ok := m.Load(pet.ID); ok {
 		return Errorf(ErrDuplicate, "Pet with id %d already exists", pet.ID)
 	}
-	m.Store(uint32(pet.ID), *pet)
+	m.Store(pet.ID, *pet)
 	return nil
 }
 
 // ReadPet gets a pet from the store given an ID
 func (m *MemStore) ReadPet(petID uint32) (*Pet, error) {
-	petData, ok := m.Load(petID)
+	petData, ok := m.Load(uint32(petID))
 	if !ok {
 		return nil, Errorf(ErrNotFound, "No pet exists with id %d", petID)
 	}
